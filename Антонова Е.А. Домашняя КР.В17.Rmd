@@ -1,0 +1,559 @@
+---
+title: "Домашняя контрольная работа. Вариант 17"
+output: html_document
+---
+#Задача №1
+Реализовать Модель Изинга в d=2 и исследовать следующие вопросы.
+ - Отобразить характерные отдельные конфигурации в зависимости от температуры(низкая температура, окрестность фазового перехода, высокая температура).Сделать предположение о значении температуры фазового перехода.
+ - Добавить внешнее магнитное поле F. Исследовать влияние константного внешнего магнитного поля на фазовый переход.
+ - Рассмотреть внешнее магнитное поле со следующей структурой: на половине решетки F=1, на другой половине F=-1 и исследовать его влияние на фазовый переход.
+ 
+ Решение. 
+ 
+Большой интерес для исслеодвания представляют фазовые переходы второго рода, связанные с перестройкой структуры вещества без обмена энергией с окружающей средой. Данный фазовый переход можно промоделировать с помощью модели Изинга. Эта модель позволяет не только объяснить переход, но и определить температуру данного перехода. Будет иллюстрироваться фазовый переход между ферромагнитным и парамагнитным состоянием. (https://cyberleninka.ru/article/v/kompyuternoe-modelirovanie-fazovyh-perehodov-v-modeli-izinga-s-dalnimi-korrelyatsiyami)
+Двумерная модель Изинга представляет собой решетку, в узлах которой расположены спины, принимающие только два значения: +1 или -1. Эти значения показывают направление спина. В рассматриваемой модели спины имеют четырехугольную систему соседства, что означает, что каждый спин может взаимодействовать только с ближайшими соседями. Иными словами, если спин задан координатами $(i,j)$, то он будет взаимодействовать с соседями с координатоми: $(i,j-1), (i,j+1),(i-1,j),(i+1,j)$. 
+Энергия данной модели задается как:
+$E(\sigma) = e^{\beta \sum_{v_i,vj}\sigma_i\sigma_j}$
+
+Вероятность нахождения спинав каждом i-м состоянии определяется распределением Гиббса:
+
+$P(\sigma) = \frac{e^{\beta E(\sigma)}}{Z}$ 
+
+где $\beta =\frac{1}{kT}$, а k - это коэффицент Больцмана, который в данной модели будет принят за 1. T - температура.
+
+Для двумерной решетки найдена критическая температура перехода $T=2.2$. Для трехмерных моделей фазового перехода второго рода  ферромагнетик-парамагнетик точных решений пока не найдено. 
+Числинными методами ведутся исследования систем с дальней корреляцией. (https://cyberleninka.ru/article/v/kompyuternoe-modelirovanie-fazovyh-perehodov-v-modeli-izinga-s-dalnimi-korrelyatsiyami)
+
+Алгоритм генерирования модели Изинга методом Монте-Карло:
+
+1.Решетка задается n x n = N
+
+2.Случайный вектор $X=(X_1,X_2,...X_n)$
+
+3.Каждая компонента $X_i\in(-1,1)$
+
+4. $S=(-1,1)^N$ - множество состояний Марковской цепи
+
+5. Распределение вектора X
+$P(x=\sigma)=\frac{e^{\beta \sum_{i,j}\sigma_i\sigma_j}}{Z}$
+
+6. Связи соседства задаются решеткой
+
+7. Начиная с состояния $X_0=\sigma$, равновероятно выбирается вершина (i,j) и берется конфигурация $\sigma'$, отличающаяся от $\sigma$ спином на вершине (i,j)
+
+8. Вероятности перехода такой цепи $Q(\sigma,\sigma')=1/N$
+
+9.Считается константа Метрополиса:
+$A(\sigma,\sigma')=min\{1,\frac{E(\sigma')}{E(\sigma)}\}=min\{1, e^{-2\beta\sum_{v_{i,j}}\sigma(i,j)\sigma(V)}\}$
+
+10. Если ${f(X')>f(X)}$, то делается шаг. Если нет, то шаг делается с вероятностью $A$, а с вероятностью $1-A$ необходимо остаться на месте и выбирать другое направление шага.
+
+Ниже представлена реализация модели при разных температурах при нулевом внешнем магнитном поле. После критической температуры ферромагнетик переходит в состояние парамагнетика и при нулевом внешнем магнином поле не обладает намагниченностью.
+
+```{r }
+set.seed(100)
+L <- 20
+N <- L*L
+cl <- list()
+v <- 0
+a <- 0
+b<- 0
+c<- 0
+d<- 0
+for (i in 1:N){
+  if (i%%L==0){
+    a <- i-(L-1)}
+  else
+  {a <- i+1 }
+  if (i+L < N+1){
+    b <- i+L  }
+  else 
+  {b <- i-(N-L)}
+  if (i==1 | i%%L==1)
+  {c <- i+(L-1)}
+  else
+  {c <- i-1}
+  if(i+(N-L)< N+1){
+    d <- i+(N-L)  }
+  else
+  {d <- i-L}
+  v <- c(a, b, c, d)
+  cl[[i]] <- v
+}
+
+Temp <- seq(from = 0.5, to=10, by=0.5)
+Nsteps <- 10^6
+S <- sample(c(-1,1), N, replace=T)
+y <- c()
+for (t in Temp){
+  for (step in 1:Nsteps){
+  T <- t
+  beta <- 1.0/T
+  z <- 1:N
+  k <- sample(z, 1, replace=T)
+  p <- c()
+  for (i in cl[[k]])
+  {p <- c(p,S[i])}
+  E <- S[k]*sum(p)
+  if(runif(1,0,1)<exp(-beta*2.0*E)){
+    S[k] =S[k]*-1
+  }
+  }
+  Sum <- abs(sum(S))/N
+  y <- c(y,Sum)
+}
+y
+```
+
+
+```{r}
+plot(Temp,y, type='l', lwd=5, col='darkred', xlab = "Temperature", main="График намагниченности без внешнего магнитного поля")
+abline(v=seq(0.5, 10, by=0.5), col="grey")
+abline(h=seq(0, 1, by=0.2), col="grey", lty="dotted") 
+axis(1, at=Temp, labels=Temp)
+```
+
+
+```{r}
+library("ggplot2")
+Nsteps <- 10^6
+S_first <- sample(c(-1,1), N, replace=T)
+T <- 1
+beta <- 1/T
+for (step in 1:Nsteps){
+  z <- 1:N
+  k <- sample(z, 1, replace=T)
+  p <- c()
+  for (i in cl[[k]])
+  {p <- c(p,S_first[i])}
+  E <- S_first[k]*sum(p)
+  if(runif(1,0,1)<exp(-beta*2.0*E)){
+    S_first[k] =S_first[k]*-1
+  }
+}
+Nsteps <- 10^6
+S2 <- sample(c(-1,1), N, replace=T)
+T <- 2.0
+beta <- 1/T
+for (step in 1:Nsteps){
+  z <- 1:N
+  k <- sample(z, 1, replace=T)
+  p <- c()
+  for (i in cl[[k]])
+  {p <- c(p,S2[i])}
+  E <- S2[k]*sum(p)
+  if(runif(1,0,1)<exp(-beta*2.0*E)){
+    S2[k] =S2[k]*-1
+  }
+}
+
+Nsteps <- 10^6
+S3 <- sample(c(-1,1), N, replace=T)
+T <- 2.2
+beta <- 1/T
+for (step in 1:Nsteps){
+  z <- 1:N
+  k <- sample(z, 1, replace=T)
+  p <- c()
+  for (i in cl[[k]])
+  {p <- c(p,S3[i])}
+  E <- S3[k]*sum(p)
+  if(runif(1,0,1)<exp(-beta*2.0*E)){
+    S3[k] =S3[k]*-1
+  }
+}
+
+Nsteps <- 10^6
+S4 <- sample(c(-1,1), N, replace=T)
+T <- 3
+beta <- 1/T
+for (step in 1:Nsteps){
+  z <- 1:N
+  k <- sample(z, 1, replace=T)
+  p <- c()
+  for (i in cl[[k]])
+  {p <- c(p,S4[i])}
+  E <- S4[k]*sum(p)
+  if(runif(1,0,1)<exp(-beta*2.0*E)){
+    S4[k] =S4[k]*-1
+  }
+}
+
+l <- c()
+S_x <- c()
+for (i in 1:L){
+  l <- 1:L
+  S_x <- c(S_x,l)
+}
+l <- c()
+S_y <- c()
+for (j in 1:L){
+  J <- rep(j,L)
+  S_y <- c(S_y,J)
+}
+
+df1 <- data.frame(S_first,S_x, S_y)
+ggplot(df1, aes(S_x, S_y), main = "T = 1.0")+
+  geom_point(size = 10, aes(color=S_first))+
+  ggtitle("при Temperature=1.0")
+df2 <- data.frame(S2,S_x, S_y)
+ggplot(df2, aes(S_x, S_y))+
+  geom_point(size = 10, aes(color=S2))+
+  ggtitle("при Temperature=2.0")
+df3 <- data.frame(S3,S_x, S_y)
+ggplot(df3, aes(S_x, S_y))+
+  geom_point(size = 10, aes(color=S3))+
+  ggtitle("при Temperature=2.2")
+df4 <- data.frame(S4,S_x, S_y)
+ggplot(df4, aes(S_x, S_y))+
+  geom_point(size = 10, aes(color=S4))+
+  ggtitle("при Temperature=3.0")
+```
+Выше представлены характерные конфигурации модели Изинга при разных температурах. Видно, что при повышении температуры намагниченность пропадает, и единообразие спинов изменяется, они становятся хаотично направленными. 
+
+```{r}
+set.seed(100)
+Temp <- seq(from = 0.5, to=10, by=0.5)
+H <- 1
+Nsteps <- 10^6
+S_M1 <- sample(c(-1,1), N, replace=T)
+y_M1 <- c()
+for (t in Temp){
+  for (step in 1:Nsteps){
+  T <- t
+  beta <- 1.0/T
+  z <- 1:N
+  k <- sample(z, 1, replace=T)
+  p <- c()
+  for (i in cl[[k]])
+  {p <- c(p,S_M1[i])}
+  E <- S_M1[k]*sum(p)+S_M1[k]*H
+  if(runif(1,0,1)<exp(-beta*2.0*E)){
+    S_M1[k] =S_M1[k]*-1
+  }
+  }
+  Sum_M1 <- abs(sum(S_M1))/N
+  y_M1 <- c(y_M1,Sum_M1)
+}
+y_M1
+```
+
+
+```{r cars}
+set.seed(100)
+Temp <- seq(from = 0.5, to=10, by=0.5)
+H <- 2
+Nsteps <- 10^6
+S_M2 <- sample(c(-1,1), N, replace=T)
+y_M2 <- c()
+for (t in Temp){
+  for (step in 1:Nsteps){
+  T <- t
+  beta <- 1.0/T
+  z <- 1:N
+  k <- sample(z, 1, replace=T)
+  p <- c()
+  for (i in cl[[k]])
+  {p <- c(p,S_M2[i])}
+  E <- S_M2[k]*sum(p)+S_M2[k]*H
+  if(runif(1,0,1)<exp(-beta*2.0*E)){
+    S_M2[k] =S_M2[k]*-1
+  }
+  }
+  Sum_M2 <- abs(sum(S_M2))/N
+  y_M2 <- c(y_M2,Sum_M2)
+}
+y_M2
+```
+
+
+```{r}
+plot(Temp,y, type='l', lwd=5, col='darkred', xlab = "Temperature", main="График намагниченности c внешним магнитным полем")
+abline(v=seq(0.5, 10, by=0.5), col="grey")
+abline(h=seq(0, 1, by=0.2), col="grey", lty="dotted") 
+axis(1, at=Temp, labels=Temp)
+lines(Temp, y_M1, col = "blue")
+lines(Temp, y_M2, col = "black")
+```
+
+
+Красной линией отмечен уровень намагниченности без внешнего поля.
+Синий  - уровень намагниченности при внешнем поле H=1
+Черной  - уровень намагниченности при внешнем поле H=2
+Как видно из графика, если добавить внешнее магнитное поле, то при $T<T_c$, поле как и при нулевом внешнем воздействии остается полностью намагниченным, однако чем выше внешнее поле, тем выше уровень намагниченности вещества, даже после достижения критической температуры.  
+
+При внешнем магнитном поле со следующей структурой: на половине решетки H=1, на другой половине H=-1 - ферромагнетик теряет магнетизацию. Это видно на графике ниже.
+```{r}
+set.seed(10)
+L1 <- 10
+N1 <- L1*L1
+cl1 <- list()
+v1 <- 0
+a1 <- 0
+b1<- 0
+c1<- 0
+d1<- 0
+for (i in 1:N1){
+  if (i%%L1==0){
+    a1 <- i-(L1-1)}
+  else
+  {a1 <- i+1 }
+  if (i+L1 < N1+1){
+    b1 <- i+L1  }
+  else 
+  {b1 <- i-(N1-L1)}
+  if (i==1 | i%%L1==1)
+  {c1 <- i+(L1-1)}
+  else
+  {c1 <- i-1}
+  if(i+(N1-L1)< N1+1){
+    d1 <- i+(N1-L1)  }
+  else
+  {d1 <- i-L1}
+  v1 <- c(a1, b1, c1, d1)
+  cl1[[i]] <- v1
+}
+L2 <- 10
+N2 <- L2*L2
+cl2 <- list()
+v2 <- 0
+a2 <- 0
+b2 <- 0
+c2 <- 0
+d2 <- 0
+for (i in 1:N2){
+  if (i%%L2==0){
+    a2 <- i-(L2-1)}
+  else
+  {a2 <- i+1 }
+  if (i+L2 < N2+1){
+    b2 <- i+L2  }
+  else 
+  {b2 <- i-(N2-L2)}
+  if (i==1 | i%%L2==1)
+  {c2 <- i+(L2-1)}
+  else
+  {c2 <- i-1}
+  if(i+(N2-L2)< N2+1){
+    d2 <- i+(N2-L2)  }
+  else
+  {d2 <- i-L2}
+  v2 <- c(a2, b2, c2, d2)
+  cl2[[i]] <- v2
+}
+
+Temp <- seq(from = 0.5, to=10, by=0.5)
+Nsteps <- 10^6
+S_part1 <- sample(c(-1,1), N1, replace=T)
+S_part2 <- sample(c(-1,1), N2, replace=T)
+y_half <- c()
+H_part1 <- 1
+H_part2 <- -1
+for (t in Temp){
+  for (step in 1:Nsteps){
+  T <- t
+  beta <- 1.0/T
+  z1 <- 1:N1
+  k1 <- sample(z1, 1, replace=T)
+  p1 <- c()
+  for (i in cl1[[k1]])
+  {p1 <- c(p1,S_part1[i])}
+  E1 <- S_part1[k1]*sum(p1)+S_part1[k1]*H_part1
+  if(runif(1,0,1)<exp(-beta*2.0*E1)){
+    S_part1[k1] =S_part1[k1]*-1
+  }
+  z2 <- 1:N2
+  k2 <- sample(z2, 1, replace=T)
+  p2 <- c()
+  for (i in cl2[[k2]])
+  {p2 <- c(p2,S_part2[i])}
+  E2 <- S_part2[k2]*sum(p2)+S_part2[k1]*H_part2
+  if(runif(1,0,1)<exp(-beta*2.0*E2)){
+    S_part2[k2] =S_part2[k2]*-1
+  }
+  }
+  S_half <- c(S_part2, S_part2, S_part1, S_part1)
+  N_half <- 2*(N1+N2)
+  Sum_half <- abs(sum(S_half))/N_half
+  y_half <- c(y_half, Sum_half)
+}
+y_half
+plot(Temp,y, type='l', lwd=5, col='darkred')
+abline(v=seq(0.5, 10, by=0.5), col="grey")
+abline(h=seq(0, 1, by=0.2), col="grey", lty="dotted") 
+axis(1, at=Temp, labels=Temp)
+lines(Temp, y_half, col = "blue")
+```
+
+
+```{r}
+set.seed(10)
+L1 <- 10
+N1 <- L1*L1
+cl1 <- list()
+v1 <- 0
+a1 <- 0
+b1<- 0
+c1<- 0
+d1<- 0
+for (i in 1:N1){
+  if (i%%L1==0){
+    a1 <- i-(L1-1)}
+  else
+  {a1 <- i+1 }
+  if (i+L1 < N1+1){
+    b1 <- i+L1  }
+  else 
+  {b1 <- i-(N1-L1)}
+  if (i==1 | i%%L1==1)
+  {c1 <- i+(L1-1)}
+  else
+  {c1 <- i-1}
+  if(i+(N1-L1)< N1+1){
+    d1 <- i+(N1-L1)  }
+  else
+  {d1 <- i-L1}
+  v1 <- c(a1, b1, c1, d1)
+  cl1[[i]] <- v1
+}
+L2 <- 10
+N2 <- L2*L2
+cl2 <- list()
+v2 <- 0
+a2 <- 0
+b2 <- 0
+c2 <- 0
+d2 <- 0
+for (i in 1:N2){
+  if (i%%L2==0){
+    a2 <- i-(L2-1)}
+  else
+  {a2 <- i+1 }
+  if (i+L2 < N2+1){
+    b2 <- i+L2  }
+  else 
+  {b2 <- i-(N2-L2)}
+  if (i==1 | i%%L2==1)
+  {c2 <- i+(L2-1)}
+  else
+  {c2 <- i-1}
+  if(i+(N2-L2)< N2+1){
+    d2 <- i+(N2-L2)  }
+  else
+  {d2 <- i-L2}
+  v2 <- c(a2, b2, c2, d2)
+  cl2[[i]] <- v2
+}
+
+T <- 1.5
+beta <- 1.0/T
+Nsteps <- 10^6
+S_part1 <- sample(c(-1,1), N1, replace=T)
+S_part2 <- sample(c(-1,1), N2, replace=T)
+y_half <- c()
+H_part1 <- 1
+H_part2 <- -1
+for (step in 1:Nsteps){
+  z1 <- 1:N1
+  k1 <- sample(z1, 1, replace=T)
+  p1 <- c()
+  for (i in cl1[[k1]])
+  {p1 <- c(p1,S_part1[i])}
+  E1 <- S_part1[k1]*sum(p1)+S_part1[k1]*H_part1
+  if(runif(1,0,1)<exp(-beta*2.0*E1)){
+    S_part1[k1] =S_part1[k1]*-1
+  }
+  z2 <- 1:N2
+  k2 <- sample(z2, 1, replace=T)
+  p2 <- c()
+  for (i in cl2[[k2]])
+  {p2 <- c(p2,S_part2[i])}
+  E2 <- S_part2[k2]*sum(p2)+S_part2[k1]*H_part2
+  if(runif(1,0,1)<exp(-beta*2.0*E2)){
+    S_part2[k2] =S_part2[k2]*-1
+  }
+}
+S_half <- c(S_part2, S_part2, S_part1, S_part1)
+
+df <- data.frame(S_half,S_x, S_y)
+ggplot(df, aes(S_x, S_y))+
+  geom_point(size = 10, aes(color=S_half))
+```
+
+#Задача №2.
+Методом Монте-Карло оцените площадь единичной d-мерной гиперсферы. Исследуйте зависимость этой величины от размерности.
+
+Гиперсфера - это гиперповерхность в n-мерном евклидовом пространстве, образованная точками, равноудалёнными от заданной точки, называемой центром сферы. Расстояние от центра гиперсферы до её поверхности называется радиусом гиперсферы.
+В задании рассматривается гиперсфера с радиусом 1.
+
+Необходимо оценить ее площадь как многомерный интеграл. 
+Уравнение сферы в декартовой системе координат имеет вид $x^2+y^2+z^2=R^2$
+Мы знаем, что когда уравнение площади поверхности задано неявным образом,
+интеграл для вычисления этой поверхности принимает вид:
+
+$S = \int\limits_{(D)}\int\frac{\sqrt{A^2+B^2+C^2}}{|C|}dxdy$
+где $A=\frac{dF}{dx}, B=\frac{dF}{dy}, C=\frac{dF}{dz}$
+
+Следовательно, для уравнения сферы имеем
+$A=2x, B=2y, C=2z$
+
+Тогда площадь сферы с учетом симметрии определяется двойным интегралом:
+
+$S = 8\int\limits_{(D)}\int\frac{\sqrt{x^2+y^2+z^2}}{|z|}dxdy=8R \int\limits_{(D)}\int\frac{1}{\sqrt{R^2-x^2-y^2}}dxdy$
+То можно обобщить эту формулу на n-мерный случай единичнйо сферы,
+$S_{d-1} = 2^d\int\limits_{(D)}\int\frac{1}{\sqrt{1-x_1^2-x_2^2....x_n^2}}dx_1dx_2...dx_n$
+
+В таком случае методом Монте Карло возможно оценить площади d-мерных сфер.
+
+```{r}
+n <- 10^7
+m <- list()
+for (i in 1:25){
+  l <- c(runif(n, -1, 1))
+  m[[i]] <- l
+}
+
+t <- rep(0, 25)
+for (d in 2:25){
+  x <- m[[d]]
+  if(d==2){
+  k <- 1-x^2
+  }
+  else 
+  {s <- x^2
+  k <- k-s}
+  I <- 1/sqrt(k)
+  Isum <- 2^d*sum(I, na.rm = TRUE)/n
+  t[d] <- Isum
+}
+t
+plot(t, type='b')
+```
+Если взять выведенную формулу для площади гиперсферы с Гамма-функцией, то получим точные значения, которые можно сравнить с симуляцией.
+$S_{d-1} = \frac{\Pi^{d/2}*d}{Г(1+d/2)}$
+
+$Г(1+d/2) = \int_0^\infty z^{d/2}e^{-z}dz$
+
+$Г(d/2) = \int_0^\infty z^{d/2-1}e^{-z}dz = EZ^{d/2-1}$
+
+$EZ^{d/2-1} = \frac{1}{N}\sum_{i=1}z_i^{d/2-1}$ где $z_i \sim Exp(1)$
+
+```{r}
+nn <- 10^7
+t2 <- rep(0, 25)
+for (d in 2:25){
+x <- rexp(nn,1)
+I <- sum(x^((d/2)-1))/nn
+F <- (2*pi^(d/2))/I
+t2[d] <- F
+}
+t2
+```
+
+```{r}
+plot(t, type='l', col='darkred')
+lines(t2, col = "blue")
+```
+
+Как можно видеть из графика, при большом числе симуляций, метод Монте-Карло дает хорошие результаты, однако с ростом размерности, точность ухудшается. 
+
